@@ -35,13 +35,13 @@ const Graph = ({ data }) => {
       }
     }
    
-    function createCurve(svg, startX, startY, controlX, controlY, endX, endY, lineColor) {
+    function createCurve(svg, startX, startY, endX, endY, lineColor) {
       const totalLength = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
     
       const curve = svg.append("path")
         .attr("fill", "none")
         .attr("stroke", lineColor)
-        .attr("stroke-width", 2)
+        .attr("stroke-width", "2px")
         .style("opacity", 0)
         .attr("stroke-dasharray", totalLength + " " + totalLength)
         .attr("stroke-dashoffset", totalLength)
@@ -53,7 +53,7 @@ const Graph = ({ data }) => {
     
       const pathData = `
         M${startX},${startY}
-        Q ${(startX + controlX) / 2},${startY} ${controlX},${controlY}
+        Q ${(startX + ((endX + startX) / 2)) / 2},${startY} ${(endX + startX) / 2},${(startY + endY) / 2}
         T ${endX},${endY}
       `;
     
@@ -64,24 +64,6 @@ const Graph = ({ data }) => {
       const x = centerX + radius * Math.cos(angle);
       const y = centerY + radius * Math.sin(angle);
       return { x, y };
-    }
-
-    function createCurvesForItems(svg, items, center, radius, competenceAngles, uniqueSkills) {
-      items.forEach(item => {
-        const isMainSkill = item.mainSkills.includes(item.name);
-        const lineColor = isMainSkill ? "orange" : "purple";
-        
-        const itemIndex = uniqueSkills.findIndex(s => s.name === item.name);
-        const { x: startX, y: startY } = calculateCoordinates(center.x, center.y, radius, skillAngles(itemIndex));
-    
-        const competenceIndex = competenceAngles(data.indexOf(item));
-        const { x: endX, y: endY } = calculateCoordinates(center.x, center.y, radius / 2, competenceIndex);
-    
-        const controlX = (endX + startX) / 2;
-        const controlY = (startY + endY) / 2;
-    
-        createCurve(svg, startX, startY, controlX, controlY, endX, endY, lineColor);
-      });
     }
 
     d3.select("#skillGraphContainer").selectAll("*").remove();
@@ -129,12 +111,23 @@ const Graph = ({ data }) => {
 
     skills.append("circle")
       .attr("r", 18,76)
-      .style("fill", "#FFD4AD");
+      .attr("data-name", (d, i) => `skill-${i}`)
+      .attr("fill", "#FFD4AD");
+    
+    skills.append("circle")
+      .attr("r", 13,35)
+      .attr("data-name", (d, i) => `skillS-${i}`)
+      .attr("fill", "#FFD4AD");
 
     competences.append("circle")
       .attr("r", 18,76)
-      .style("fill", "#ADADAD");
+      .attr("data-name", (d, i) => `competence-${i}`)
+      .attr("fill", "#ADADAD");
 
+    competences.append("circle")
+      .attr("r", 13,35)
+      .attr("data-name", (d, i) => `competenceS-${i}`)
+      .attr("fill", "#ADADAD");
 
     skills.append("text")
       .text((d) => d.name)
@@ -152,11 +145,11 @@ const Graph = ({ data }) => {
       .attr("dy", (d, i) => i > 0 ? "1.5em" : 0) 
       .text((d) => d);
 
-
     if (selectedSkill) {
       const connectedCompetences = extractSkills(selectedSkill.name);
 
       for (const competence of connectedCompetences) {
+
         const isMainSkill = competence.mainSkills.includes(selectedSkill.name);
         const lineColor = isMainSkill ? "orange" : "purple";
 
@@ -165,30 +158,58 @@ const Graph = ({ data }) => {
         const { x: startX, y: startY } = calculateCoordinates(centerX, centerY, radius, skillAngles(componentsIndex));
         const { x: endX, y: endY } = calculateCoordinates(centerX, centerY, radius / 2, competenceAngles(data.indexOf(competence)));
 
-        const controlX = (endX + startX) / 2;
-        const controlY = (startY + endY) / 2;
+        const skillElement = svg.selectAll(`[data-name="skill-${componentsIndex}"]`);
+        const skillElementS = svg.selectAll(`[data-name="skillS-${componentsIndex}"]`);
 
-        createCurve(svg, startX, startY, controlX, controlY, endX, endY, lineColor);
+        if (skillElement) {
+          skillElement.attr("fill", "white")
+            .attr("stroke", "#FF7A00")
+          skillElementS.style("fill", "#FF7A00");
+        }
+
+        createCurve(svg, startX, startY, endX, endY, lineColor);
+
+        const componentsElement = svg.selectAll(`[data-name="competence-${data.indexOf(competence)}"]`);
+        const componentsElementS = svg.selectAll(`[data-name="competenceS-${data.indexOf(competence)}"]`);
+          if (componentsElement) {
+            componentsElement.style("fill", "#00A372");
+            componentsElementS.style("fill", "#00A372");
+          }
       };
     }
 
     if (selectedCompetence) {
-      const selectedSkills = [...selectedCompetence.mainSkills, ...selectedCompetence.otherSkills];
+      const selectedSkills = [...selectedCompetence.mainSkills, ...selectedCompetence.otherSkills].map( skill => ({name : skill}));
+
+      const componentsElement = svg.selectAll(`[data-name="competence-${data.indexOf(selectedCompetence)}"]`);
+      const componentsElementS = svg.selectAll(`[data-name="competenceS-${data.indexOf(selectedCompetence)}"]`);
+        
+      if (componentsElement) {
+        componentsElement
+          .attr("fill", "white")
+          .attr("stroke", "#00A372");
+        componentsElementS
+          .attr("fill", "#00A372");
+      }
   
       for (const skill of selectedSkills) {
 
-        const isMainSkill = selectedCompetence.mainSkills.includes(skill);
+        const isMainSkill = selectedCompetence.mainSkills.includes(skill.name);
         const lineColor = isMainSkill ? "orange" : "purple";
 
-        const skillIndex = uniqueSkills.findIndex(s => s.name === skill);
+        const skillIndex = uniqueSkills.findIndex(s => s.name === skill.name);
 
-        const { x: endX, y: endY } = calculateCoordinates(centerX, centerY, radius, skillAngles(skillIndex));
         const { x: startX, y: startY } = calculateCoordinates(centerX, centerY, radius / 2, competenceAngles(data.indexOf(selectedCompetence)));
+        const { x: endX, y: endY } = calculateCoordinates(centerX, centerY, radius, skillAngles(skillIndex));
 
-        const controlX = (endX + startX) / 2;
-        const controlY = (startY + endY) / 2;
+        createCurve(svg, startX, startY, endX, endY, lineColor);
 
-        createCurve(svg, startX, startY, controlX, controlY, endX, endY, lineColor);
+        const skillElement = svg.selectAll(`[data-name="skill-${skillIndex}"]`);
+        const skillElementS = svg.selectAll(`[data-name="skillS-${skillIndex}"]`);
+          if (skillElement) {
+            skillElement.style("fill", "#FF7A00");
+            skillElementS.style("fill", "#FF7A00");
+          }
       };
     }
     
