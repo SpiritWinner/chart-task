@@ -17,7 +17,73 @@ const Graph = ({ data }) => {
   };
 
   const drawGraph = () => {
+
+    function drawCurves(data, anglesFunction, radiusFactor) {
+      for (let i = 0; i < data.length; i++) {
+        const startX = centerX + (radius * radiusFactor) * Math.cos(anglesFunction(i));
+        const startY = centerY + (radius * radiusFactor) * Math.sin(anglesFunction(i));
+        const endX = centerX + (radius * radiusFactor) * Math.cos(anglesFunction((i + 1) % data.length));
+        const endY = centerY + (radius * radiusFactor) * Math.sin(anglesFunction((i + 1) % data.length));
+        const controlX = centerX + (radius * radiusFactor) * Math.cos(anglesFunction((i + 0.5) % data.length));
+        const controlY = centerY + (radius * radiusFactor) * Math.sin(anglesFunction((i + 0.5) % data.length));
+        
+        svg.append("path")
+          .attr("d", `M ${startX},${startY} Q ${controlX},${controlY} ${endX},${endY}`)
+          .attr("fill", "none")
+          .attr("stroke", "#ADADAD")
+          .attr("stroke-width", 2.35);
+      }
+    }
    
+    function createCurve(svg, startX, startY, controlX, controlY, endX, endY, lineColor) {
+      const totalLength = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+    
+      const curve = svg.append("path")
+        .attr("fill", "none")
+        .attr("stroke", lineColor)
+        .attr("stroke-width", 2)
+        .style("opacity", 0)
+        .attr("stroke-dasharray", totalLength + " " + totalLength)
+        .attr("stroke-dashoffset", totalLength)
+        .transition()
+        .duration(800)
+        .ease(d3.easeLinear)
+        .attr("stroke-dashoffset", 0)
+        .style("opacity", 1);
+    
+      const pathData = `
+        M${startX},${startY}
+        Q ${(startX + controlX) / 2},${startY} ${controlX},${controlY}
+        T ${endX},${endY}
+      `;
+    
+      curve.attr("d", pathData);
+    }
+
+    function calculateCoordinates(centerX, centerY, radius, angle) {
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      return { x, y };
+    }
+
+    function createCurvesForItems(svg, items, center, radius, competenceAngles, uniqueSkills) {
+      items.forEach(item => {
+        const isMainSkill = item.mainSkills.includes(item.name);
+        const lineColor = isMainSkill ? "orange" : "purple";
+        
+        const itemIndex = uniqueSkills.findIndex(s => s.name === item.name);
+        const { x: startX, y: startY } = calculateCoordinates(center.x, center.y, radius, skillAngles(itemIndex));
+    
+        const competenceIndex = competenceAngles(data.indexOf(item));
+        const { x: endX, y: endY } = calculateCoordinates(center.x, center.y, radius / 2, competenceIndex);
+    
+        const controlX = (endX + startX) / 2;
+        const controlY = (startY + endY) / 2;
+    
+        createCurve(svg, startX, startY, controlX, controlY, endX, endY, lineColor);
+      });
+    }
+
     d3.select("#skillGraphContainer").selectAll("*").remove();
 
     const svg = d3.select("#skillGraphContainer").append("svg")
@@ -35,6 +101,9 @@ const Graph = ({ data }) => {
     const competenceAngles = d3.scaleLinear()
       .domain([0, data.length])
       .range([0, 2 * Math.PI]);
+
+    drawCurves(data, competenceAngles, 0.5);
+    drawCurves(uniqueSkills, skillAngles, 1);
 
     const skills = svg.selectAll(".skill")
       .data(uniqueSkills)
@@ -73,7 +142,7 @@ const Graph = ({ data }) => {
       .attr("dy", "-1em")
       .attr("fill", "#3A3A3A");
 
-      competences.append("text")
+    competences.append("text")
       .attr("text-anchor", "start")
       .attr("fill", "#3A3A3A")
       .selectAll("tspan")
@@ -82,37 +151,7 @@ const Graph = ({ data }) => {
       .attr("x", '-40px')
       .attr("dy", (d, i) => i > 0 ? "1.5em" : 0) 
       .text((d) => d);
-  
 
-    for (let i = 0; i < data.length; i++) {
-      const startX = centerX + (radius / 2) * Math.cos(competenceAngles(i));
-      const startY = centerY + (radius / 2) * Math.sin(competenceAngles(i));
-      const endX = centerX + (radius / 2) * Math.cos(competenceAngles((i + 1) % data.length));
-      const endY = centerY + (radius / 2) * Math.sin(competenceAngles((i + 1) % data.length));
-      const controlX = centerX + (radius / 2) * Math.cos(competenceAngles((i + 0.5) % data.length));
-      const controlY = centerY + (radius / 2) * Math.sin(competenceAngles((i + 0.5) % data.length));
-      
-      svg.append("path")
-        .attr("d", `M ${startX},${startY} Q ${controlX},${controlY} ${endX},${endY}`)
-        .attr("fill", "none")
-        .attr("stroke", "#ADADAD")
-        .attr("stroke-width", 2.35);
-    }
-
-    for (let i = 0; i < uniqueSkills.length; i++) {
-      const startX = centerX + radius * Math.cos(skillAngles(i));
-      const startY = centerY + radius * Math.sin(skillAngles(i));
-      const endX = centerX + radius * Math.cos(skillAngles((i + 1) % uniqueSkills.length));
-      const endY = centerY + radius * Math.sin(skillAngles((i + 1) % uniqueSkills.length));
-      const controlX = centerX + radius * Math.cos(skillAngles((i + 0.5) % uniqueSkills.length));
-      const controlY = centerY + radius * Math.sin(skillAngles((i + 0.5) % uniqueSkills.length));
-      
-      svg.append("path")
-        .attr("d", `M ${startX},${startY} Q ${controlX},${controlY} ${endX},${endY}`)
-        .attr("fill", "none")
-        .attr("stroke", "#ADADAD")
-        .attr("stroke-width", 2.35);
-    }
 
     if (selectedSkill) {
       const connectedCompetences = extractSkills(selectedSkill.name);
@@ -123,29 +162,13 @@ const Graph = ({ data }) => {
 
         const componentsIndex = uniqueSkills.findIndex(s => s.name === selectedSkill.name);
 
-        const startX = centerX + radius * Math.cos(skillAngles(componentsIndex));
-        const startY = centerY + radius * Math.sin(skillAngles(componentsIndex));
-        const endX = centerX + (radius / 2) * Math.cos(competenceAngles(data.indexOf(competence)));
-        const endY = centerY + (radius / 2) * Math.sin(competenceAngles(data.indexOf(competence)));
+        const { x: startX, y: startY } = calculateCoordinates(centerX, centerY, radius, skillAngles(componentsIndex));
+        const { x: endX, y: endY } = calculateCoordinates(centerX, centerY, radius / 2, competenceAngles(data.indexOf(competence)));
 
         const controlX = (endX + startX) / 2;
         const controlY = (startY + endY) / 2;
 
-        const controlX2 = (startX + controlX) / 2;
-        const controlY2 = startY;
-
-        const curve = svg.append("path")
-          .attr("fill", "none")
-          .attr("stroke", lineColor)
-          .attr("stroke-width", 2);
-        
-        const pathData = `
-          M${startX},${startY}
-          Q ${controlX2},${controlY2} ${controlX},${controlY}
-          T ${endX},${endY}
-        `;
-
-        curve.attr("d", pathData);
+        createCurve(svg, startX, startY, controlX, controlY, endX, endY, lineColor);
       };
     }
 
@@ -153,35 +176,22 @@ const Graph = ({ data }) => {
       const selectedSkills = [...selectedCompetence.mainSkills, ...selectedCompetence.otherSkills];
   
       for (const skill of selectedSkills) {
+
+        const isMainSkill = selectedCompetence.mainSkills.includes(skill);
+        const lineColor = isMainSkill ? "orange" : "purple";
+
         const skillIndex = uniqueSkills.findIndex(s => s.name === skill);
-        const startX = centerX + radius * Math.cos(skillAngles(skillIndex));
-        const startY = centerY + radius * Math.sin(skillAngles(skillIndex));
-        const endX = centerX + (radius / 2) * Math.cos(competenceAngles(data.indexOf(selectedCompetence)));
-        const endY = centerY + (radius / 2) * Math.sin(competenceAngles(data.indexOf(selectedCompetence)));
+
+        const { x: endX, y: endY } = calculateCoordinates(centerX, centerY, radius, skillAngles(skillIndex));
+        const { x: startX, y: startY } = calculateCoordinates(centerX, centerY, radius / 2, competenceAngles(data.indexOf(selectedCompetence)));
 
         const controlX = (endX + startX) / 2;
         const controlY = (startY + endY) / 2;
 
-        const controlX2 = (startX + controlX) / 2;
-        const controlY2 = startY;
-        
-        const lineColor = selectedCompetence.mainSkills.includes(skill) ? "orange" : "purple";
-
-        const curve = svg.append("path")
-          .attr("fill", "none")
-          .attr("stroke", lineColor)
-          .attr("stroke-width", 2);
-        
-        const pathData = `
-          M${startX},${startY}
-          Q ${controlX2},${controlY2} ${controlX},${controlY}
-          T ${endX},${endY}
-        `;
-
-        curve.attr("d", pathData);
-      }
+        createCurve(svg, startX, startY, controlX, controlY, endX, endY, lineColor);
+      };
     }
-
+    
   };
 
   return (
